@@ -1,103 +1,108 @@
-"""
-Base scraper class - abstract interface for all job scrapers
-"""
-
 from abc import ABC, abstractmethod
 from typing import Optional
 from datetime import datetime
+import time
 
 from src.core.job import Job, JobSource, JobStatus
 from src.utils.config import get_settings
 from src.utils.database import get_db
+from src.scrapers.job_filter import JobFilter
+from src.scrapers.scraper_utils import (
+    ScrapeResult, ScraperMetrics, RetryConfig, RateLimiter,
+    get_metrics, get_rate_limiter
+)
 
 
 class BaseScraper(ABC):
-    """
-    Abstract base class for job scrapers.
-    Each source (LinkedIn, Simplify, etc.) has its own subclass.
-    """
-    
     SOURCE_NAME = "Base"
     SOURCE_TYPE = JobSource.OTHER
     
     def __init__(self):
         self.settings = get_settings()
         self.db = get_db()
+        self.job_filter = JobFilter(
+            max_years_experience=3,
+            exclude_companies=self.settings.search.exclude_companies,
+            max_days_old=self.settings.search.max_days_old
+        )
+        self.retry_config = RetryConfig(max_retries=3, base_delay=2.0)
+        self.rate_limiter = get_rate_limiter(self.SOURCE_NAME)
+        self.metrics = get_metrics(self.SOURCE_NAME)
+        
         self.jobs_found = 0
         self.jobs_new = 0
+        self.jobs_filtered = 0
     
     @abstractmethod
-    async def scrape(
-        self,
-        keywords: list[str] = None,
-        location: str = None,
-        limit: int = 50,
-    ) -> list[Job]:
-        """
-        Scrape jobs from this source.
-        
-        Args:
-            keywords: Job titles/keywords to search for
-            location: Location filter
-            limit: Maximum number of jobs to return
-        
-        Returns:
-            List of Job objects
-        """
+    async def scrape(self, keywords: list[str] = None, location: str = None, limit: int = 50) -> list[Job]:
         pass
     
+    async def scrape_with_metrics(self, keywords: list[str] = None, location: str = None, limit: int = 50) -> ScrapeResult:
+        start_time = time.time()
+        
+        try:
+            await self.rate_limiter.acquire()
+            jobs = await self.scrape(keywords, location, limit)
+            duration = time.time() - start_time
+            
+            result = ScrapeResult(
+                success=True,
+                jobs_found=len(jobs),
+                jobs_new=self.jobs_new,
+                jobs_filtered=self.jobs_filtered,
+                duration_seconds=duration
+            )
+        except Exception as e:
+            duration = time.time() - start_time
+            result = ScrapeResult(
+                success=False,
+                error=str(e),
+                duration_seconds=duration
+            )
+        
+        self.metrics.record_run(result)
+        return result
+    
     def get_search_keywords(self) -> list[str]:
-        """Get search keywords from settings"""
         return self.settings.search.titles
     
     def get_locations(self) -> list[str]:
-        """Get locations from settings"""
         return self.settings.search.locations
     
     def should_include_job(self, job: Job) -> bool:
-        """
-        Check if a job matches our filter criteria.
-        """
         title_lower = job.title.lower()
         company_lower = job.company.lower()
         
-        # Check excluded companies
         for excluded in self.settings.search.exclude_companies:
             if excluded.lower() in company_lower:
+                self.jobs_filtered += 1
                 return False
         
-        # Check excluded keywords
         for excluded in self.settings.search.exclude_keywords:
             if excluded.lower() in title_lower:
+                self.jobs_filtered += 1
                 return False
         
-        return True
+        should_include, reason = self.job_filter.should_include(job)
+        if not should_include:
+            self.jobs_filtered += 1
+        
+        return should_include
     
     def save_job(self, job: Job) -> Optional[str]:
-        """
-        Save a job to the database.
-        Returns job ID if new, None if already exists.
-        """
-        # Check if already exists
         existing = self.db.get_job_by_url(job.url)
         if existing:
             return None
         
-        # Set source and status
         job.source = self.SOURCE_TYPE
         job.status = JobStatus.NEW
         job.discovered_at = datetime.now()
         
-        # Save to database
         job_id = self.db.add_job(job)
         self.jobs_new += 1
         return job_id
     
     def save_jobs(self, jobs: list[Job]) -> int:
-        """
-        Save multiple jobs to database.
-        Returns count of new jobs saved.
-        """
         saved = 0
         for job in jobs:
             if self.should_include_job(job):
@@ -106,9 +111,15 @@ class BaseScraper(ABC):
         return saved
     
     def get_stats(self) -> dict:
-        """Get scraping statistics"""
         return {
             "source": self.SOURCE_NAME,
             "jobs_found": self.jobs_found,
             "jobs_new": self.jobs_new,
+            "jobs_filtered": self.jobs_filtered,
+            "metrics": self.metrics.to_dict()
         }
+    
+    def reset_counters(self):
+        self.jobs_found = 0
+        self.jobs_new = 0
+        self.jobs_filtered = 0

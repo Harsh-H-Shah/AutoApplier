@@ -1,7 +1,3 @@
-"""
-Base notifier class
-"""
-
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Optional
@@ -9,15 +5,14 @@ from dataclasses import dataclass
 
 
 class NotificationPriority(str, Enum):
-    LOW = "low"      # Daily summaries
-    NORMAL = "normal"  # Completed applications
-    HIGH = "high"    # Needs review
-    URGENT = "urgent"  # Errors/failures
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
 
 
 @dataclass
 class Notification:
-    """Notification data"""
     title: str
     message: str
     priority: NotificationPriority = NotificationPriority.NORMAL
@@ -30,8 +25,6 @@ class Notification:
 
 
 class BaseNotifier(ABC):
-    """Abstract base class for notification services"""
-    
     SERVICE_NAME = "Base"
     
     def __init__(self):
@@ -39,22 +32,9 @@ class BaseNotifier(ABC):
     
     @abstractmethod
     async def send(self, notification: Notification) -> bool:
-        """
-        Send a notification.
-        
-        Returns:
-            True if sent successfully
-        """
         pass
     
-    async def notify_needs_review(
-        self,
-        job_title: str,
-        company: str,
-        reason: str,
-        url: str = ""
-    ) -> bool:
-        """Send a notification that an application needs review"""
+    async def notify_needs_review(self, job_title: str, company: str, reason: str, url: str = "") -> bool:
         return await self.send(Notification(
             title=f"🔔 Review Needed: {company}",
             message=f"**{job_title}** at **{company}**\n\nReason: {reason}",
@@ -63,13 +43,7 @@ class BaseNotifier(ABC):
             tags=["needs_review", company.lower().replace(" ", "_")]
         ))
     
-    async def notify_completed(
-        self,
-        job_title: str,
-        company: str,
-        url: str = ""
-    ) -> bool:
-        """Send a notification that an application was completed"""
+    async def notify_completed(self, job_title: str, company: str, url: str = "") -> bool:
         return await self.send(Notification(
             title=f"✅ Applied: {company}",
             message=f"Successfully applied to **{job_title}** at **{company}**",
@@ -78,13 +52,7 @@ class BaseNotifier(ABC):
             tags=["completed"]
         ))
     
-    async def notify_failed(
-        self,
-        job_title: str,
-        company: str,
-        error: str
-    ) -> bool:
-        """Send a notification that an application failed"""
+    async def notify_failed(self, job_title: str, company: str, error: str) -> bool:
         return await self.send(Notification(
             title=f"❌ Failed: {company}",
             message=f"Failed to apply to **{job_title}** at **{company}**\n\nError: {error}",
@@ -92,14 +60,7 @@ class BaseNotifier(ABC):
             tags=["failed", "error"]
         ))
     
-    async def notify_daily_summary(
-        self,
-        applied: int,
-        pending: int,
-        failed: int,
-        needs_review: int
-    ) -> bool:
-        """Send daily summary notification"""
+    async def notify_daily_summary(self, applied: int, pending: int, failed: int, needs_review: int) -> bool:
         return await self.send(Notification(
             title="📊 Daily Summary",
             message=(

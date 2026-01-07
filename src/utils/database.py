@@ -1,23 +1,10 @@
-"""
-Database utilities - SQLite with SQLAlchemy ORM
-"""
-
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from contextlib import contextmanager
 
 from sqlalchemy import (
-    create_engine,
-    Column,
-    String,
-    Integer,
-    Float,
-    Boolean,
-    DateTime,
-    Text,
-    JSON,
-    Enum as SQLEnum,
+    create_engine, Column, String, Integer, Float, Boolean, DateTime, Text, JSON, Enum as SQLEnum,
 )
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
@@ -28,7 +15,6 @@ Base = declarative_base()
 
 
 class JobModel(Base):
-    """SQLAlchemy model for Job"""
     __tablename__ = "jobs"
     
     id = Column(String, primary_key=True)
@@ -54,7 +40,6 @@ class JobModel(Base):
     match_score = Column(Float)
     
     def to_job(self) -> Job:
-        """Convert to Job model"""
         return Job(
             id=self.id,
             title=self.title,
@@ -81,7 +66,6 @@ class JobModel(Base):
     
     @classmethod
     def from_job(cls, job: Job) -> "JobModel":
-        """Create from Job model"""
         return cls(
             id=job.id or str(hash(job.url)),
             title=job.title,
@@ -108,7 +92,6 @@ class JobModel(Base):
 
 
 class ApplicationModel(Base):
-    """SQLAlchemy model for Application"""
     __tablename__ = "applications"
     
     id = Column(String, primary_key=True)
@@ -135,11 +118,6 @@ class ApplicationModel(Base):
 
 
 class Database:
-    """
-    Database manager for AutoApplier.
-    Handles all database operations with SQLite.
-    """
-    
     def __init__(self, db_path: str = "data/applications.db", echo: bool = False):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -150,13 +128,10 @@ class Database:
             connect_args={"check_same_thread": False}
         )
         self.SessionLocal = sessionmaker(bind=self.engine)
-        
-        # Create tables
         Base.metadata.create_all(self.engine)
     
     @contextmanager
     def session(self) -> Session:
-        """Get a database session"""
         session = self.SessionLocal()
         try:
             yield session
@@ -167,14 +142,11 @@ class Database:
         finally:
             session.close()
     
-    # Job operations
     def add_job(self, job: Job) -> str:
-        """Add a job to the database"""
         job_id = job.id or str(hash(job.url))
         job.id = job_id
         
         with self.session() as session:
-            # Check if exists
             existing = session.query(JobModel).filter(JobModel.url == job.url).first()
             if existing:
                 return existing.id
@@ -185,19 +157,105 @@ class Database:
         return job_id
     
     def get_job(self, job_id: str) -> Optional[Job]:
-        """Get a job by ID"""
         with self.session() as session:
             job_model = session.query(JobModel).filter(JobModel.id == job_id).first()
             return job_model.to_job() if job_model else None
     
-    def get_job_by_url(self, url: str) -> Optional[Job]:
-        """Get a job by URL"""
-        with self.session() as session:
             job_model = session.query(JobModel).filter(JobModel.url == url).first()
             return job_model.to_job() if job_model else None
     
+    def filter_existing_urls(self, urls: list[str]) -> set[str]:
+        if not urls:
+            return set()
+        
+        existing = set()
+        # Process in chunks to avoid SQLite limits
+        chunk_size = 500
+        for i in range(0, len(urls), chunk_size):
+            chunk = urls[i:i + chunk_size]
+            with self.session() as session:
+                results = session.query(JobModel.url).filter(
+                    JobModel.url.in_(chunk)
+                ).all()
+                existing.update(r[0] for r in results)
+        return existing
+    
+    def add_jobs_bulk(self, jobs: list[Job]) -> int:
+        if not jobs:
+            return 0
+            
+        count = 0
+        with self.session() as session:
+            job_models = []
+            for job in jobs:
+                job.id = job.id or str(hash(job.url))
+                job.discovered_at = datetime.now()
+                job.status = JobStatus.NEW
+                job_models.append(JobModel.from_job(job))
+                
+            if job_models:
+                session.bulk_save_objects(job_models)
+                count = len(job_models)
+                
+        return count
+    
+    def check_content_duplicates(self, candidates: list[Job]) -> set[str]:
+        if not candidates:
+            return set()
+            
+        duplicate_urls = set()
+        
+        # Prepare candidates for query
+        # We check against jobs from last 7 days to keep query efficient
+        cutoff_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # We need to check one by one or construct a complex OR query.
+        # A complex OR query is better: (title=t1 AND company=c1) OR (title=t2 AND company=c2)...
+        # But SQLite limit is 1000 vars. So batching is needed.
+        
+        from sqlalchemy import or_, and_, func
+        
+        chunk_size = 50 
+        for i in range(0, len(candidates), chunk_size):
+            chunk = candidates[i:i + chunk_size]
+            
+            conditions = []
+            for job in chunk:
+                # Basic normalization
+                t = job.title.lower().strip()
+                c = job.company.lower().strip()
+                conditions.append(
+                    and_(
+                        func.lower(JobModel.title) == t,
+                        func.lower(JobModel.company) == c
+                    )
+                )
+            
+            if not conditions:
+                continue
+                
+            with self.session() as session:
+                matches = session.query(JobModel.url, JobModel.title, JobModel.company).filter(
+                    or_(*conditions)
+                ).all()
+                
+                # Double check matches in python to map back to candidate URLs
+                # because the query returns existing URLs, we need to know which candidate caused it.
+                # Actually, if we find a match (title+company), we just need to flag the candidate that has that title+company.
+                
+                matched_pairs = set()
+                for url, title, company in matches:
+                    matched_pairs.add((title.lower().strip(), company.lower().strip()))
+                
+                for job in chunk:
+                    t = job.title.lower().strip()
+                    c = job.company.lower().strip()
+                    if (t, c) in matched_pairs:
+                        duplicate_urls.add(job.url)
+                        
+        return duplicate_urls
+    
     def get_jobs_by_status(self, status: JobStatus, limit: int = 100) -> list[Job]:
-        """Get jobs by status"""
         with self.session() as session:
             job_models = session.query(JobModel).filter(
                 JobModel.status == status.value
@@ -205,12 +263,10 @@ class Database:
             return [jm.to_job() for jm in job_models]
     
     def get_pending_jobs(self, limit: int = 10) -> list[Job]:
-        """Get jobs ready for application"""
         return self.get_jobs_by_status(JobStatus.NEW, limit) + \
                self.get_jobs_by_status(JobStatus.QUEUED, limit)
     
     def update_job_status(self, job_id: str, status: JobStatus) -> None:
-        """Update job status"""
         with self.session() as session:
             job_model = session.query(JobModel).filter(JobModel.id == job_id).first()
             if job_model:
@@ -219,7 +275,6 @@ class Database:
                     job_model.applied_at = datetime.now()
     
     def get_job_stats(self) -> dict:
-        """Get job statistics"""
         with self.session() as session:
             total = session.query(JobModel).count()
             applied = session.query(JobModel).filter(
@@ -231,17 +286,23 @@ class Database:
             failed = session.query(JobModel).filter(
                 JobModel.status == JobStatus.FAILED.value
             ).count()
+            needs_review = session.query(JobModel).filter(
+                JobModel.status == JobStatus.NEEDS_REVIEW.value
+            ).count()
+            expired = session.query(JobModel).filter(
+                JobModel.status == JobStatus.EXPIRED.value
+            ).count()
             
             return {
                 "total": total,
                 "applied": applied,
                 "pending": pending,
                 "failed": failed,
+                "needs_review": needs_review,
+                "expired": expired,
             }
     
-    # Application operations
     def add_application(self, application: Application) -> str:
-        """Add an application record"""
         app_id = application.id or f"app_{application.job_id}_{int(datetime.now().timestamp())}"
         application.id = app_id
         
@@ -255,15 +316,14 @@ class Database:
                 application_type=application.application_type,
                 status=application.status,
                 created_at=application.created_at,
-                questions=[q.model_dump() for q in application.questions],
-                logs=[log.model_dump() for log in application.logs],
+                questions=[q.model_dump(mode='json') for q in application.questions],
+                logs=[log.model_dump(mode='json') for log in application.logs],
             )
             session.add(app_model)
         
         return app_id
     
     def update_application(self, application: Application) -> None:
-        """Update an application record"""
         with self.session() as session:
             app_model = session.query(ApplicationModel).filter(
                 ApplicationModel.id == application.id
@@ -275,18 +335,16 @@ class Database:
                 app_model.completed_at = application.completed_at
                 app_model.current_step = application.current_step
                 app_model.total_steps = application.total_steps
-                app_model.questions = [q.model_dump() for q in application.questions]
-                app_model.logs = [log.model_dump() for log in application.logs]
+                app_model.questions = [q.model_dump(mode='json') for q in application.questions]
+                app_model.logs = [log.model_dump(mode='json') for log in application.logs]
                 app_model.error_message = application.error_message
                 app_model.retry_count = application.retry_count
 
 
-# Global database instance
 _db: Optional[Database] = None
 
 
 def get_db() -> Database:
-    """Get the global database instance"""
     global _db
     if _db is None:
         from src.utils.config import get_settings
