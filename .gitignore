@@ -40,7 +40,6 @@ env/
 
 # Data files (sensitive)
 data/profile.json
-data/resume.json
 data/*.db
 
 # Logs
