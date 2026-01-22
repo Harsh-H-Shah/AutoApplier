@@ -1,0 +1,180 @@
+\documentclass[letterpaper,11pt]{article}
+
+% ---------------- PACKAGES ----------------
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage[T1]{fontenc}
+\usepackage[charter]{mathdesign}
+
+% ---------------- MARGINS ----------------
+\usepackage[margin=0.5in]{geometry}
+
+\raggedright
+\pagestyle{empty}
+\setlength{\tabcolsep}{0pt}
+
+% ---------------- SECTION STYLE ----------------
+\titleformat{\section}{
+  \vspace{-10pt}\scshape\raggedright\large\bfseries
+}{}{0em}{}[\titlerule \vspace{-5pt}]
+
+% ---------------- CUSTOM COMMANDS ----------------
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & \textbf{#2} \\
+      \textit{#3} & \textit{#4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+      #1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeHonorItem}[1]{
+  \item{
+    {#1 \vspace{-4pt}}
+  }
+}
+\newcommand{\resumeHonorsListStart}{\begin{itemize}[leftmargin=0in, label={}, itemsep=0pt, topsep=2pt]}
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=0.15in]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+% ================= DOCUMENT =================
+\begin{document}
+
+% ---------------- HEADER ----------------
+\begin{center}
+    {\Huge Harsh Haresh Shah} \\ \vspace{4pt} % [cite: 4]
+    \small Stony Brook, New York 11790 \\ \vspace{2pt} % 
+    \small 
+    \faPhone\ (516) 434-1033 \quad 
+    \faEnvelope\ \href{mailto:harsh@harsh.software}{\underline{harsh@harsh.software}} \quad % [cite: 1]
+    \faLinkedin\ \href{https://linkedin.com/in/harsh-h-shah}{\underline{harsh-h-shah}} \quad % [cite: 1]
+    \faGithub\ \href{https://github.com/Harsh-H-Shah}{\underline{Harsh-H-Shah}} \quad % [cite: 13]
+    \faGlobe\ \href{https://harsh.software}{\underline{harsh.software}} % [cite: 13]
+\end{center}
+
+% ---------------- EDUCATION ----------------
+\section{Education}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {Stony Brook University}{Aug 2024 -- May 2026} % [cite: 3, 14]
+    {Master of Computer Science -- CGPA: 3.71/4.0}{Stony Brook, New York} % [cite: 5, 14]
+    % \resumeItemListStart
+    %     \resumeItem{\textbf{Relevant Coursework:} Algorithms, Operating Systems, Wireless Networks, Data Structures} % [cite: 6]
+    % \resumeItemListEnd
+  \resumeSubheading
+    {University of Mumbai}{Dec 2020 -- May 2024} % [cite: 7, 15]
+    {Bachelor of Engineering in Computer Engineering -- CGPA: 9.05/10}{Mumbai, India} % [cite: 8, 16]
+    % \resumeItemListStart
+    %     \resumeItem{\textbf{Relevant Coursework:} Databases, Computer Networks, Distributed Systems} % [cite: 9]
+    % \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+% ---------------- TECHNICAL SKILLS ----------------
+\section{Technical Skills}
+\begin{itemize}[leftmargin=0in, label={}]
+    {\item{
+     \textbf{Languages}:{ Python, Java, C++, JavaScript/TypeScript, SQL, Solidity, Bash/Shell, Dart} \\
+     \textbf{Frameworks}:{ React, Node.js, Flask, Flutter, Spring Boot, PyTorch, Docker, Kubernetes, AWS, Azure, GCP} \\
+     \textbf{Tools}:{ Linux/Unix, Git, CI/CD (GitHub Actions, Jenkins), Prometheus, Grafana, Kafka, gRPC, Prompt Engineering} \\
+     \textbf{Databases}:{ PostgreSQL, MySQL, MongoDB, Redis, Vector Databases (Pinecone, Chroma)}
+    }}
+\end{itemize}
+ 
+
+% ---------------- EXPERIENCE ----------------
+\section{Professional Experience}
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Stony Brook University | Mechanismic Inc.}{Oct 2025 -- Present}
+    {Graduate Software Research Assistant}{Stony Brook, New York}
+    \resumeItemListStart
+      \resumeItem{Built a PCI-DSS compliant subscription system using Stripe and GCP Cloud Functions, handling billing for \textbf{1,000+ users}.}
+      \resumeItem{Integrated tiered access control in the SnappyXO-Auth package, maintaining permission check latency under \textbf{100ms}.}
+      \resumeItem{Reduced manual support workload by \textbf{45\%} by automating the end-to-end license provisioning pipeline for subscriptions.}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Meta | Major League Hacking}{Jun 2025 -- Sep 2025}
+    {Production Engineering Intern}{Remote}
+    \resumeItemListStart
+      \resumeItem{Deployed Flask application with Redis caching, Docker containers, and CI/CD via GitHub Actions on Digital Ocean VPS.}
+      \resumeItem{Configured Linux infrastructure with Nginx load balancing and systemd service management to sustain \textbf{10k+ RPM traffic}.}
+      \resumeItem{Implemented monitoring with Prometheus, Grafana, and Alertmanager, reducing incident detection time by \textbf{30\%}.}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Acapulco AI Services}{Oct 2023 -- Mar 2024}
+    {Software Developer Intern}{Mumbai, India}
+    \resumeItemListStart
+      \resumeItem{Led the building of ZapMap (EV platform) using Flask, Flutter, PostgreSQL with PostGIS, Docker, and GitHub Actions.}
+      \resumeItem{Optimized routing by implementing a custom A* algorithm with OpenStreetMap data, improving ETA accuracy by \textbf{25\%}.}
+      \resumeItem{Designed microservices architecture and integrated third-party charging network APIs, achieving \textbf{99.5\%} API reliability.}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Aumsat Technologies}{Jun 2023 -- Oct 2023}
+    {Software Developer Intern}{Mumbai, India}
+    \resumeItemListStart
+      \resumeItem{Engineered a geospatial ETL pipeline in Python using GeoPandas and GDAL to process and standardize \textbf{500+ datasets}.}
+      \resumeItem{Automated data ingestion and validation, reducing processing latency by \textbf{40\%} and saving \textbf{10+} engineering hours per week.}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+% ---------------- PROJECTS ----------------
+\section{Projects}
+\resumeSubHeadingListStart
+
+    \resumeProjectHeading
+    {\textbf{Threat Detection Prototype — MetaMask} $|$ \emph{Ethereum, Browser Security, TypeScript} {\href{https://github.com/MetaMask/metamask-extension/pull/35825}{\scriptsize \faExternalLink*}}}{\textbf{Jan 2025 -- Dec 2025}}
+    \resumeItemListStart
+      \resumeItem{Analyzed address poisoning and typosquatting attacks, identifying patterns across \textbf{175K+} malicious transaction attempts.}
+      \resumeItem{Prototyped low-latency detection heuristics (Damerau-Levenshtein distance, transaction history) that reduced phishing risk by \textbf{70\%} with only \textbf{30ms} overhead.}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{Alpha Trading — Real-Time Market Data System} $|$ \emph{React, WebSockets, AWS, LSTM} {\href{https://github.com/Harsh-H-Shah/Alpha-trading}{\scriptsize \faExternalLink*}}}{\textbf{Dec 2023 -- Mar 2024}}
+    \resumeItemListStart
+      \resumeItem{Built a real-time trading simulator consuming WebSocket feeds for \textbf{500+ NSE stocks}, with latencies under \textbf{100ms}.}
+      \resumeItem{Integrated LSTM neural network for price trend forecasting, achieving \textbf{85\% accuracy} on historical data.}
+    \resumeItemListEnd
+
+  \resumeProjectHeading
+    {\textbf{Rashi Pay — Offline Payment Interface} $|$ \emph{React Native, Express.js, Bluetooth, RSA}}{\textbf{Mar 2022 -- Aug 2022}}
+    \resumeItemListStart
+      \resumeItem{Created an offline P2P payment app using BLE, enabling offline transactions \textbf{40\% faster} than internet-dependent methods.}
+      \resumeItem{Implemented end-to-end security with 2048-bit RSA encryption, with \textbf{10,000+} secure test transactions.}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%----------- HONORS & RECOGNITIONS -----------
+\section{Honors \& Recognitions}
+\resumeSubHeadingListStart
+    \resumeHonorItem{\textbf{Won Smart India Hackathon 2022} $|$ among 30,000+ teams for developing RashiPay Offline Payment Interface.}
+    \resumeHonorItem{\textbf{Finalist, Harbinger 2.0 RBI Hackathon} $|$ Among 363 teams from 22 countries for a scalable blockchain solution.}
+    \resumeHonorItem{\textbf{Won HopperHacks 2025} and \textbf{HackNYU 2025} $|$ for accessibility applications.}
+    \resumeHonorItem{\textbf{Publication, CSA 2024} $|$ "A Cloud-Based Architecture for EV Charge Station Finder with Efficient Scheduling."}
+\resumeSubHeadingListEnd
+
+\end{document}

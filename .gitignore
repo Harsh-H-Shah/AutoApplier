@@ -25,6 +25,7 @@ venv/
 ENV/
 env/
 .venv/
+backend/.venv/
 
 # Environment variables
 .env
@@ -41,13 +42,13 @@ env/
 # Data files (sensitive)
 data/profile.json
 data/*.db
+data/llm_usage.json
 
 # Logs
 logs/
 *.log
 
 # Browser automation
-*.png
 screenshots/
 downloads/
 
@@ -59,3 +60,10 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Debug outputs
+probe_output.txt
+
+# Frontend build artifacts
+frontend/.next/
+frontend/node_modules/

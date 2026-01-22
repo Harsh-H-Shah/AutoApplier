@@ -1,0 +1,334 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+:root {
+  /* Valorant-inspired color palette */
+  --valo-dark: #0F1923;
+  --valo-darker: #0A1015;
+  --valo-red: #FF4655;
+  --valo-red-dark: #BD3944;
+  --valo-green: #00FFA3;
+  --valo-green-dark: #00CC82;
+  --valo-cyan: #00D9FF;
+  --valo-yellow: #FFE500;
+  --valo-orange: #FF7F00;
+  --valo-gray: #1F2937;
+  --valo-gray-light: #374151;
+  --valo-text: #ECE8E1;
+  --valo-text-dim: #8A8F98;
+  
+  --background: var(--valo-dark);
+  --foreground: var(--valo-text);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-valo-dark: var(--valo-dark);
+  --color-valo-darker: var(--valo-darker);
+  --color-valo-red: var(--valo-red);
+  --color-valo-green: var(--valo-green);
+  --color-valo-cyan: var(--valo-cyan);
+  --color-valo-yellow: var(--valo-yellow);
+  --color-valo-gray: var(--valo-gray);
+  --color-valo-gray-light: var(--valo-gray-light);
+  --color-valo-text: var(--valo-text);
+  --color-valo-text-dim: var(--valo-text-dim);
+  --font-sans: var(--font-rajdhani), sans-serif;
+  --font-display: var(--font-teko), sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Body with Map Background visibility */
+body {
+  background: var(--valo-darker);
+  color: var(--valo-text);
+  font-family: var(--font-rajdhani), sans-serif;
+  font-weight: 500;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Floating Animation globally */
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.floating-animation {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Glowing effects */
+.glow-green {
+  box-shadow: 0 0 10px var(--valo-green), 0 0 20px rgba(0, 255, 163, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 10px var(--valo-red), 0 0 20px rgba(255, 70, 85, 0.3);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 10px var(--valo-cyan), 0 0 20px rgba(0, 217, 255, 0.3);
+}
+
+/* Tech border style */
+/* Tech Card / Border Style (Viper Aesthetics) */
+.tech-border {
+  position: relative;
+  background: rgba(15, 25, 35, 0.75); /* Translucent dark */
+  backdrop-filter: blur(12px); /* Glassmorphism */
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05); /* Inner highlight */
+  
+  /* Angular Cut Corners (Viper style) */
+  clip-path: polygon(
+    0 0, 
+    100% 0, 
+    100% calc(100% - 20px), 
+    calc(100% - 20px) 100%, 
+    0 100%
+  );
+  
+  /* Reset rounded corners */
+  border-radius: 0 !important;
+}
+
+/* Tech Button Style */
+.tech-button {
+  position: relative;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+  clip-path: polygon(
+    0 0, 
+    100% 0, 
+    100% calc(100% - 10px), 
+    calc(100% - 10px) 100%, 
+    0 100%
+  );
+  border-radius: 0 !important;
+}
+
+.tech-button:hover {
+  background: rgba(255, 255, 255, 0.08); /* Lighter on hover */
+  border-color: var(--valo-red);
+  transform: translateY(-1px);
+}
+
+.tech-button.active {
+  background: rgba(255, 70, 85, 0.2); /* Red tint */
+  border-color: var(--valo-red);
+  box-shadow: 0 0 15px rgba(255, 70, 85, 0.2);
+}
+
+.tech-button-solid {
+  background: var(--valo-red);
+  color: white;
+  border: none;
+  clip-path: polygon(
+    10px 0, 
+    100% 0, 
+    100% calc(100% - 10px), 
+    calc(100% - 10px) 100%, 
+    0 100%,
+    0 10px
+  );
+}
+
+.tech-button-solid:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.clip-path-check {
+  clip-path: polygon(20% 0, 100% 0, 100% 80%, 80% 100%, 0 100%, 0 20%);
+}
+
+/* Add a decorative border effect that respects the clip-path via pseudo-element is hard, 
+   so we use an inner overlay for the "border" effect or just rely on background contrast */
+.tech-border::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(-45deg, var(--valo-red) 50%, transparent 50%);
+  opacity: 0.5;
+  z-index: -1;
+}
+
+/* Animated gradient background */
+.gradient-animate {
+  background: linear-gradient(
+    135deg,
+    var(--valo-dark) 0%,
+    var(--valo-darker) 50%,
+    var(--valo-dark) 100%
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Pulse animation */
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse-green {
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+/* XP bar animation */
+@keyframes xp-fill {
+  from { width: 0%; }
+  to { width: var(--xp-width, 0%); }
+}
+
+.xp-bar-fill {
+  animation: xp-fill 1s ease-out forwards;
+}
+
+/* Scan line effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1) 0px,
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--valo-green);
+}
+
+/* Status badge styles */
+.status-green {
+  background: rgba(0, 255, 163, 0.15);
+  color: var(--valo-green);
+  border: 1px solid var(--valo-green);
+}
+
+.status-yellow {
+  background: rgba(255, 229, 0, 0.15);
+  color: var(--valo-yellow);
+  border: 1px solid var(--valo-yellow);
+}
+
+.status-red {
+  background: rgba(255, 70, 85, 0.15);
+  color: var(--valo-red);
+  border: 1px solid var(--valo-red);
+}
+
+.status-orange {
+  background: rgba(255, 127, 0, 0.15);
+  color: var(--valo-orange);
+  border: 1px solid var(--valo-orange);
+}
+
+.status-gray {
+  background: rgba(138, 143, 152, 0.15);
+  color: var(--valo-text-dim);
+  border: 1px solid var(--valo-text-dim);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--valo-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--valo-gray-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--valo-green);
+}
+
+/* Number counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.count-up {
+  animation: countUp 0.5s ease-out forwards;
+}
+
+/* Shimmer effect for loading states */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Animate in utilities */
+.animate-in {
+  animation-duration: 0.3s;
+  animation-fill-mode: forwards;
+}
+
+.fade-in {
+  animation-name: fadeIn;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.zoom-in-95 {
+  animation-name: zoomIn95;
+}
+
+@keyframes zoomIn95 {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.slide-in-from-top-2 {
+  animation-name: slideInFromTop;
+}
+
+@keyframes slideInFromTop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

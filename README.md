@@ -131,6 +131,21 @@ All configuration is managed via environment variables (`.env` file):
 - `NTFY_TOPIC`: ntfy.sh topic for mobile notifications
 - `EMAIL_USER` / `EMAIL_PASSWORD`: For email verification code extraction
 
+## 🗺️ Future Roadmap
+
+### AI-Powered Resume Tailoring
+A pipeline to automatically customize resumes for each job application:
+- Takes job description as input and analyzes key requirements
+- Uses Gemini API to intelligently modify `main.tex` (add/subtract skills, reorder experience)
+- Compiles LaTeX on-the-fly to generate a tailored PDF for each role
+- Integrates with the application flow for role-specific submissions
+
+### Additional Planned Features
+- **Email Integration**: Parse inbox for interview invites, rejections, and application confirmations
+- **Application Analytics**: Track conversion rates, response times, and success patterns
+- **Multi-Resume Support**: Maintain different resume variants for different role types
+- **Cover Letter Generation**: Context-aware cover letters using job description + profile
+
 ## 📜 License
 
 MIT License - feel free to use and modify!
