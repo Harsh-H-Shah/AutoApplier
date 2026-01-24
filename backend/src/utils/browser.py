@@ -19,44 +19,39 @@ class BrowserManager:
         self.playwright = await async_playwright().start()
         
         browser_config = self.settings.browser
+        user_data_dir = Path("data/browser_context")
+        user_data_dir.mkdir(parents=True, exist_ok=True)
         
-        if browser_config.type == "firefox":
-            self.browser = await self.playwright.firefox.launch(
-                headless=browser_config.headless,
-                slow_mo=browser_config.slow_mo,
-            )
-        elif browser_config.type == "webkit":
-            self.browser = await self.playwright.webkit.launch(
-                headless=browser_config.headless,
-                slow_mo=browser_config.slow_mo,
-            )
-        else:
-            self.browser = await self.playwright.chromium.launch(
-                headless=browser_config.headless,
-                slow_mo=browser_config.slow_mo,
-            )
-        
-        self.context = await self._create_stealth_context()
-    
-    async def _create_stealth_context(self) -> BrowserContext:
-        settings = self.settings.browser
-        
-        context = await self.browser.new_context(
-            viewport=settings.viewport,
-            user_agent=settings.user_agent or self._get_default_user_agent(),
-            locale="en-US",
-            timezone_id="America/New_York",
-            geolocation={"latitude": 40.7128, "longitude": -74.0060},
-            permissions=["geolocation"],
-            extra_http_headers={
+        # In Playwright, launch_persistent_context handles both launch and context creation
+        launch_args = {
+            "user_data_dir": str(user_data_dir),
+            "headless": browser_config.headless,
+            "slow_mo": browser_config.slow_mo,
+            "viewport": browser_config.viewport,
+            "user_agent": browser_config.user_agent or self._get_default_user_agent(),
+            "locale": "en-US",
+            "timezone_id": "America/New_York",
+            "geolocation": {"latitude": 40.7128, "longitude": -74.0060},
+            "permissions": ["geolocation"],
+            "extra_http_headers": {
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate, br",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             }
-        )
+        }
         
-        await context.add_init_script(self._get_stealth_script())
-        return context
+        if browser_config.type == "firefox":
+            self.context = await self.playwright.firefox.launch_persistent_context(**launch_args)
+        elif browser_config.type == "webkit":
+            self.context = await self.playwright.webkit.launch_persistent_context(**launch_args)
+        else:
+            self.context = await self.playwright.chromium.launch_persistent_context(**launch_args)
+        
+        await self.context.add_init_script(self._get_stealth_script())
+        # With persistent context, we don't need a separate browser object for closing/management
+        # as the context itself represents the browser session.
+        self.browser = None 
+    
     
     def _get_default_user_agent(self) -> str:
         return (
