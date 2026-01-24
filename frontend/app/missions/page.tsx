@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '@/components/Sidebar';
 import Footer from '@/components/Footer';
@@ -27,10 +27,13 @@ export default function MissionsPage() {
   // Selection
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   
-  // UX State
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deployedJob, setDeployedJob] = useState<string | null>(null);
+  // UX State - Per-job tracking
+  const [deployingJobs, setDeployingJobs] = useState<Set<string>>(new Set());
+  const [abortingJobs, setAbortingJobs] = useState<Set<string>>(new Set());
+  const [markingCompleteJobs, setMarkingCompleteJobs] = useState<Set<string>>(new Set());
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'abort' | 'complete' | 'deploy'>('success');
   
   // Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -39,12 +42,24 @@ export default function MissionsPage() {
   
   // Animation State
   const [exitingJobIds, setExitingJobIds] = useState<Set<string>>(new Set());
+  
+  // Polling ref for job status
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+  
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -97,45 +112,162 @@ export default function MissionsPage() {
   };
 
   const handleApplyJob = async (jobId: string) => {
-    setIsDeploying(true);
-    setDeployedJob(jobId);
+    // Find the job to check if it's a retry
+    const job = jobs.find(j => j.id === jobId);
+    const isRetry = job?.status === 'failed';
+    
+    // Add to deploying set - runs in background
+    setDeployingJobs(prev => new Set(prev).add(jobId));
+    
+    // Immediate feedback toast
+    setToastType('success');
+    setToastMessage(isRetry ? 'RETRYING DEPLOYMENT...' : 'AGENT DEPLOYED');
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 2000);
+    
     try {
       await api.triggerApply(jobId);
       await refresher();
-      // Keep overlay for a moment for "vibe"
-      setTimeout(() => setIsDeploying(false), 2000);
-    } catch (err) {
-      console.error('Apply failed:', err);
-      setIsDeploying(false);
-    }
-  };
-
-  const handleMarkApplied = async (jobId: string) => {
-    setExitingJobIds(prev => new Set(prev).add(jobId));
-
-    setTimeout(async () => {
-      try {
-        await api.updateJob(jobId, { status: 'applied' });
-        await refresher();
-        
-        setExitingJobIds(prev => {
+      
+      // Start polling for job status
+      const pollStatus = async () => {
+        try {
+          const status = await api.getApplyStatus(jobId);
+          if (!status.is_running) {
+            // Job finished - refresh and clear state
+            await refresher();
+            setDeployingJobs(prev => {
+              const next = new Set(prev);
+              next.delete(jobId);
+              return next;
+            });
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+          }
+        } catch (e) {
+          console.error('Polling error:', e);
+        }
+      };
+      
+      // Poll every 2 seconds
+      pollingRef.current = setInterval(pollStatus, 2000);
+      
+      // Fallback timeout after 60 seconds
+      setTimeout(() => {
+        setDeployingJobs(prev => {
           const next = new Set(prev);
           next.delete(jobId);
           return next;
         });
-
-        if (selectedJob?.id === jobId) {
-          setSelectedJob(null);
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
         }
-      } catch (err) {
-        console.error('Update failed:', err);
-        setExitingJobIds(prev => {
-           const next = new Set(prev);
-           next.delete(jobId);
-           return next;
-        });
+      }, 60000);
+      
+    } catch (err) {
+      console.error('Apply failed:', err);
+      setDeployingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
+  const handleAbortJob = async (jobId: string) => {
+    console.log('Aborting job:', jobId);
+    setAbortingJobs(prev => new Set(prev).add(jobId));
+    
+    try {
+      const result = await api.abortApply(jobId);
+      console.log('Abort result:', result);
+      
+      // Clear polling if any
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
-    }, 600);
+      
+      // Brief animation delay for feedback
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
+      await refresher();
+      
+      // Show abort toast
+      setToastType('abort');
+      setToastMessage('DEPLOYMENT STOPPED');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+    } catch (err: any) {
+      console.error('Abort failed:', err);
+      // Still show toast and clear state even on error
+      setToastType('abort');
+      setToastMessage('STOP REQUESTED');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+    } finally {
+      setAbortingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+      setDeployingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
+  const handleMarkApplied = async (jobId: string) => {
+    // If currently deploying, abort first
+    if (deployingJobs.has(jobId)) {
+      await handleAbortJob(jobId);
+    }
+    
+    setMarkingCompleteJobs(prev => new Set(prev).add(jobId));
+    setExitingJobIds(prev => new Set(prev).add(jobId));
+
+    // Brief animation delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    try {
+      await api.updateJob(jobId, { status: 'applied' });
+      await refresher();
+      
+      // Show complete toast
+      setToastType('complete');
+      setToastMessage('MISSION COMPLETE');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+      setExitingJobIds(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+
+      if (selectedJob?.id === jobId) {
+        setSelectedJob(null);
+      }
+    } catch (err) {
+      console.error('Update failed:', err);
+      setExitingJobIds(prev => {
+         const next = new Set(prev);
+         next.delete(jobId);
+         return next;
+      });
+    } finally {
+      setMarkingCompleteJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
   };
 
   const handleUndo = async (jobId: string) => {
@@ -399,7 +531,11 @@ export default function MissionsPage() {
                       onApply={handleApplyJob} 
                       onMarkApplied={(id) => handleMarkApplied(id)} 
                       onUndo={(id) => handleUndo(id)}
-                      onDelete={handleDeleteClick} 
+                      onDelete={handleDeleteClick}
+                      onAbort={handleAbortJob}
+                      isDeploying={deployingJobs.has(job.id)}
+                      isAborting={abortingJobs.has(job.id)}
+                      isMarkingComplete={markingCompleteJobs.has(job.id)}
                     />
                   )}
                 </motion.div>
@@ -411,53 +547,43 @@ export default function MissionsPage() {
         
         <Footer />
 
-        {/* Deployment Overlay */}
-        <AnimatePresence>
-          {isDeploying && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center backdrop-blur-xl"
-            >
-              <div className="relative w-64 h-64 mb-8">
-                <div className="absolute inset-0 border-4 border-[var(--valo-cyan)]/20 rounded-full" />
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  className="absolute inset-0 border-4 border-t-[var(--valo-cyan)] rounded-full shadow-[0_0_30px_var(--valo-cyan)]"
-                />
-                <div className="absolute inset-4 border-2 border-[var(--valo-red)]/20 rounded-full animate-pulse" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-4xl">⚡</span>
-                </div>
-              </div>
-              <h2 className="font-display text-3xl font-bold text-white tracking-[0.3em] mb-2">FILTRATION IN PROGRESS</h2>
-              <div className="h-1 w-64 bg-white/10 relative overflow-hidden">
-                <motion.div 
-                  initial={{ left: "-100%" }}
-                  animate={{ left: "100%" }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute top-0 bottom-0 w-1/2 bg-[var(--valo-cyan)] shadow-[0_0_15px_var(--valo-cyan)]"
-                />
-              </div>
-              <p className="text-[var(--valo-text-dim)] font-mono text-xs mt-4 uppercase tracking-widest">Compiling biometric profile...</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Success Toast */}
+        {/* Toast Notifications */}
         <AnimatePresence>
           {showSuccessToast && (
             <motion.div 
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20 }}
-              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[300] bg-[var(--valo-cyan)] text-black px-8 py-4 font-bold tracking-widest flex items-center gap-4 shadow-[0_0_40px_rgba(0,255,255,0.4)]"
+              className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[300] px-8 py-4 font-bold tracking-widest flex items-center gap-4 ${
+                toastType === 'abort' 
+                  ? 'bg-[var(--valo-red)] text-white shadow-[0_0_40px_rgba(255,70,85,0.4)]'
+                  : toastType === 'complete'
+                  ? 'bg-[var(--valo-green)] text-black shadow-[0_0_40px_rgba(0,255,100,0.4)]'
+                  : 'bg-[var(--valo-cyan)] text-black shadow-[0_0_40px_rgba(0,255,255,0.4)]'
+              }`}
               style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
             >
-              <span className="text-xl">✅</span>
-              MISSION DATA ENCRYPTED & UPLOADED
+              {toastType === 'abort' ? (
+                <span className="text-xl">🛑</span>
+              ) : toastType === 'complete' ? (
+                <motion.span 
+                  className="text-xl"
+                  animate={{ rotate: [0, 360], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.5 }}
+                >
+                  ✅
+                </motion.span>
+              ) : (
+                <motion.span 
+                  className="text-xl"
+                  animate={{ scale: [1, 1.3, 1] }}
+                  transition={{ duration: 0.4 }}
+                >
+                  🚀
+                </motion.span>
+              )}
+              {toastMessage || 'MISSION DATA ENCRYPTED & UPLOADED'}
             </motion.div>
           )}
         </AnimatePresence>

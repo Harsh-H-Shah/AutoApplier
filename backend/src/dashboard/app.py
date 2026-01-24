@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict
 from pathlib import Path
 import asyncio
 import json
@@ -17,6 +17,9 @@ from src.utils.config import get_settings
 from src.core.job import JobStatus, ApplicationType
 
 app = FastAPI(title="AutoApplier Dashboard", version="2.0.0")
+
+# Track running application tasks for abort functionality
+running_applications: Dict[str, dict] = {}  # job_id -> {"cancelled": bool, "started_at": datetime}
 
 # CORS for Next.js frontend
 app.add_middleware(
@@ -756,16 +759,31 @@ async def get_combat_history():
 @app.post("/api/apply/{job_id}")
 async def trigger_apply(job_id: str, background_tasks: BackgroundTasks):
     """Trigger application for a specific job"""
+    global running_applications
+    
     db = get_db()
     job = db.get_job(job_id)
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if already running
+    if job_id in running_applications and not running_applications[job_id].get("cancelled"):
+        return {"status": "already_running", "job_id": job_id, "message": "Application already in progress"}
+        
+    # Register this application
+    running_applications[job_id] = {"cancelled": False, "started_at": datetime.now()}
         
     async def run_single_apply():
         from src.orchestrator import Orchestrator
         from src.core.applicant import Applicant
         from src.core.application import Application
+        
+        # Check if cancelled before starting
+        if running_applications.get(job_id, {}).get("cancelled"):
+            print(f"   🛑 Application {job_id} was cancelled before starting")
+            running_applications.pop(job_id, None)
+            return
         
         # Load profile
         # Since we run from backend/ directory, data/ is in parent
@@ -779,6 +797,7 @@ async def trigger_apply(job_id: str, background_tasks: BackgroundTasks):
 
         if not profile_path.exists():
             print(f"Profile not found at {profile_path} or data/profile.json")
+            running_applications.pop(job_id, None)
             return
             
         applicant = Applicant.from_file(profile_path)
@@ -789,6 +808,12 @@ async def trigger_apply(job_id: str, background_tasks: BackgroundTasks):
              # Initial update
              db.update_job_status(job_id, JobStatus.IN_PROGRESS)
              
+             # Check cancellation
+             if running_applications.get(job_id, {}).get("cancelled"):
+                 print(f"   🛑 Application {job_id} cancelled during setup")
+                 db.update_job_status(job_id, JobStatus.NEW)  # Reset to new
+                 return
+             
              application = Application.from_job(job)
              
              # Determine filler
@@ -797,7 +822,19 @@ async def trigger_apply(job_id: str, background_tasks: BackgroundTasks):
                  from src.fillers.universal_filler import UniversalFiller
                  filler_class = UniversalFiller
              
+             # Check cancellation before fill
+             if running_applications.get(job_id, {}).get("cancelled"):
+                 print(f"   🛑 Application {job_id} cancelled before filling")
+                 db.update_job_status(job_id, JobStatus.NEW)
+                 return
+             
              success = await orchestrator._fill_application(job, application, filler_class)
+             
+             # Check cancellation after fill
+             if running_applications.get(job_id, {}).get("cancelled"):
+                 print(f"   🛑 Application {job_id} cancelled - not updating status")
+                 db.update_job_status(job_id, JobStatus.NEW)
+                 return
              
              if success:
                  db.update_job_status(job_id, JobStatus.APPLIED)
@@ -806,14 +843,61 @@ async def trigger_apply(job_id: str, background_tasks: BackgroundTasks):
                  if job.status != JobStatus.REJECTED.value:
                      db.update_job_status(job_id, JobStatus.FAILED)
                      
+        except asyncio.CancelledError:
+            print(f"   🛑 Application {job_id} task was cancelled")
+            db.update_job_status(job_id, JobStatus.NEW)
         except Exception as e:
             print(f"Single apply error: {e}")
-            db.update_job_status(job_id, JobStatus.FAILED)
+            if not running_applications.get(job_id, {}).get("cancelled"):
+                db.update_job_status(job_id, JobStatus.FAILED)
         finally:
             await orchestrator.teardown()
+            running_applications.pop(job_id, None)
 
     background_tasks.add_task(run_single_apply)
     return {"status": "started", "job_id": job_id, "message": "Application process started"}
+
+
+@app.post("/api/apply/{job_id}/abort")
+async def abort_apply(job_id: str):
+    """Abort an in-progress application"""
+    global running_applications
+    
+    db = get_db()
+    job = db.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job_id not in running_applications:
+        # Not running - just reset status if it was in_progress
+        if job.status == JobStatus.IN_PROGRESS.value:
+            db.update_job_status(job_id, JobStatus.NEW)
+        return {"status": "not_running", "job_id": job_id, "message": "No application in progress"}
+    
+    # Mark as cancelled
+    running_applications[job_id]["cancelled"] = True
+    print(f"   🛑 Abort requested for job {job_id}")
+    
+    # Reset job status
+    db.update_job_status(job_id, JobStatus.NEW)
+    
+    return {"status": "aborted", "job_id": job_id, "message": "Application abort requested"}
+
+
+@app.get("/api/apply/{job_id}/status")
+async def get_apply_status(job_id: str):
+    """Get the status of an application process"""
+    global running_applications
+    
+    is_running = job_id in running_applications and not running_applications[job_id].get("cancelled")
+    started_at = running_applications.get(job_id, {}).get("started_at")
+    
+    return {
+        "job_id": job_id,
+        "is_running": is_running,
+        "started_at": started_at.isoformat() if started_at else None
+    }
 
 
 @app.post("/api/run")

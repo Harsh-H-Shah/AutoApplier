@@ -1,3 +1,6 @@
+'use client';
+
+import { motion, AnimatePresence } from 'framer-motion';
 import { Job } from '@/lib/api';
 
 interface JobDetailsProps {
@@ -6,9 +9,26 @@ interface JobDetailsProps {
   onMarkApplied: (id: string) => void;
   onUndo: (id: string) => void;
   onDelete: (id: string) => void;
+  onAbort?: (id: string) => void;
+  isDeploying?: boolean;
+  isAborting?: boolean;
+  isMarkingComplete?: boolean;
 }
 
-export default function JobDetails({ job, onApply, onMarkApplied, onUndo, onDelete }: JobDetailsProps) {
+export default function JobDetails({ 
+  job, 
+  onApply, 
+  onMarkApplied, 
+  onUndo, 
+  onDelete,
+  onAbort,
+  isDeploying = false,
+  isAborting = false,
+  isMarkingComplete = false
+}: JobDetailsProps) {
+  
+  const isInProgress = job.status === 'in_progress' || isDeploying;
+  
   return (
     <div className="px-6 pb-6 pt-0 border-t border-[var(--valo-gray-light)]/20 bg-[var(--valo-dark)]/30 animate-in slide-in-from-top-2">
       <div className="pt-4">
@@ -44,12 +64,26 @@ export default function JobDetails({ job, onApply, onMarkApplied, onUndo, onDele
            
            <div className="bg-[var(--valo-darker)] p-3 border border-white/5 relative overflow-hidden group">
               <label className="text-[10px] text-[var(--valo-text-dim)] tracking-widest uppercase block mb-1">STATUS</label>
-              <div className={`font-mono text-sm font-bold ${
+              <div className={`font-mono text-sm font-bold flex items-center gap-2 ${
                 job.status === 'applied' ? 'text-[var(--valo-green)]' :
                 job.status === 'failed' ? 'text-[var(--valo-red)]' :
+                job.status === 'in_progress' || isDeploying ? 'text-[var(--valo-yellow)]' :
                 'text-[var(--valo-yellow)]'
               }`}>
-                {job.status.toUpperCase().replace('_', ' ')}
+                {isDeploying ? (
+                  <>
+                    <motion.span 
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="inline-block"
+                    >
+                      ⚡
+                    </motion.span>
+                    DEPLOYING...
+                  </>
+                ) : (
+                  job.status.toUpperCase().replace('_', ' ')
+                )}
               </div>
            </div>
         </div>
@@ -66,30 +100,96 @@ export default function JobDetails({ job, onApply, onMarkApplied, onUndo, onDele
             VIEW MISSION
           </a>
           
-          {(job.status === 'new' || job.status === 'needs_review' || job.status === 'failed') && (
-            <button
-              onClick={() => onApply(job.id)}
-              className={`flex-1 py-3 px-4 font-bold text-center hover:scale-[1.02] active:scale-95 transition-all duration-200 tech-button-solid shadow-lg ${
-                job.status === 'failed' ? 'bg-[var(--valo-red)] text-white hover:bg-red-400' : 'bg-[var(--valo-green)] text-[var(--valo-dark)] hover:bg-green-400'
-              }`}
-              style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
-            >
-              {job.status === 'failed' ? 'RETRY DEPLOY' : 'DEPLOY AGENT'}
-            </button>
-          )}
+          {/* Deploy / Retry / Abort Button */}
+          <AnimatePresence mode="wait">
+            {isInProgress ? (
+              <motion.button
+                key="abort"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={() => onAbort?.(job.id)}
+                disabled={isAborting}
+                className="flex-1 py-3 px-4 font-bold text-center transition-all duration-200 tech-button-solid shadow-lg bg-[var(--valo-red)] text-white relative overflow-hidden"
+                style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
+                whileTap={{ scale: 0.95 }}
+              >
+              {isAborting ? (
+                <motion.span 
+                  className="flex items-center justify-center gap-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <motion.svg 
+                    className="w-5 h-5" 
+                    fill="none" 
+                    viewBox="0 0 24 24"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </motion.svg>
+                  STOPPING...
+                </motion.span>
+              ) : (
+                'STOP'
+              )}
+              </motion.button>
+            ) : (job.status === 'new' || job.status === 'needs_review' || job.status === 'failed') && (
+              <motion.button
+                key="deploy"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={() => onApply(job.id)}
+                className={`flex-1 py-3 px-4 font-bold text-center transition-all duration-200 tech-button-solid shadow-lg hover:scale-[1.02] ${
+                  job.status === 'failed' ? 'bg-[var(--valo-red)] text-white hover:bg-red-400' : 'bg-[var(--valo-green)] text-[var(--valo-dark)] hover:bg-green-400'
+                }`}
+                style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {job.status === 'failed' ? 'RETRY DEPLOY' : 'DEPLOY AGENT'}
+              </motion.button>
+            )}
+          </AnimatePresence>
           
+          {/* Mark Complete Button */}
           {job.status !== 'applied' && (
-            <button
+            <motion.button
               onClick={(e) => {
                 e.stopPropagation();
                 onMarkApplied(job.id);
               }}
+              disabled={isMarkingComplete}
               className="flex-1 py-3 px-4 border border-[var(--valo-green)] text-[var(--valo-green)] font-bold text-center hover:bg-[var(--valo-green)] hover:text-[var(--valo-dark)] active:scale-95 transition tech-button"
+              whileTap={{ scale: 0.95 }}
             >
-              MARK COMPLETE
-            </button>
+              {isMarkingComplete ? (
+                <motion.span 
+                  className="flex items-center justify-center gap-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <motion.svg 
+                    className="w-5 h-5" 
+                    fill="none" 
+                    viewBox="0 0 24 24"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </motion.svg>
+                  COMPLETING...
+                </motion.span>
+              ) : (
+                'MARK COMPLETE'
+              )}
+            </motion.button>
           )}
           
+          {/* Revoke / Dismiss Button */}
           <button
             onClick={() => job.status === 'applied' ? onUndo(job.id) : onDelete(job.id)}
             className={`flex-1 py-3 px-4 border font-bold text-center active:scale-95 transition tech-button ${
@@ -98,7 +198,7 @@ export default function JobDetails({ job, onApply, onMarkApplied, onUndo, onDele
                 : 'border-[var(--valo-red)] text-[var(--valo-red)] hover:bg-[var(--valo-red)] hover:text-white'
             }`}
           >
-            {job.status === 'applied' ? 'REVOKE' : 'ABORT'}
+            {job.status === 'applied' ? 'REVOKE' : 'DISMISS'}
           </button>
         </div>
       </div>
