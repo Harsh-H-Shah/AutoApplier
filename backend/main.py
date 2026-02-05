@@ -99,7 +99,7 @@ def status():
 @app.command()
 def scrape(
     source: Optional[str] = typer.Option(None, "--source", "-s"),
-    limit: int = typer.Option(50, "--limit", "-l"),
+    limit: int = typer.Option(100, "--limit", "-l"),
 ):
     console.print("\n🔍 [bold blue]Scraping Jobs...[/bold blue]\n")
     

@@ -15,6 +15,9 @@ export default function MissionsPage() {
   const [gamification, setGamification] = useState<Gamification | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadMore, setIsLoadMore] = useState(false);
   
   // Filters & Search
   const [filter, setFilter] = useState<string>('all');
@@ -48,7 +51,10 @@ export default function MissionsPage() {
 
   // Debounce search
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    const timer = setTimeout(() => {
+        setDebouncedSearch(searchQuery);
+        setPage(1); // Reset page on search change
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
   
@@ -65,7 +71,7 @@ export default function MissionsPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const params: any = { per_page: 50 };
+        const params: any = { per_page: 50, page: 1 };
         if (filter !== 'all') params.status = filter;
         if (sourceFilter !== 'all') params.source = sourceFilter;
         if (typeFilter !== 'all') params.type = typeFilter;
@@ -80,6 +86,8 @@ export default function MissionsPage() {
         setProfile(profileData);
         setGamification(gamData);
         setJobs(jobsData.jobs);
+        setHasMore(jobsData.has_more);
+        setPage(1);
       } catch (err) {
         console.error('Failed to fetch:', err);
       } finally {
@@ -88,6 +96,29 @@ export default function MissionsPage() {
     };
     fetchData();
   }, [filter, sourceFilter, typeFilter, debouncedSearch, sortBy]);
+
+  const loadMore = async () => {
+      if (!hasMore || isLoadMore) return;
+      setIsLoadMore(true);
+      try {
+          const nextPage = page + 1;
+          const params: any = { per_page: 50, page: nextPage };
+          if (filter !== 'all') params.status = filter;
+          if (sourceFilter !== 'all') params.source = sourceFilter;
+          if (typeFilter !== 'all') params.type = typeFilter;
+          if (debouncedSearch) params.search = debouncedSearch;
+          if (sortBy) params.sort = sortBy;
+
+          const jobsData = await api.getJobs(params);
+          setJobs(prev => [...prev, ...jobsData.jobs]);
+          setHasMore(jobsData.has_more);
+          setPage(nextPage);
+      } catch (err) {
+          console.error("Failed to load more:", err);
+      } finally {
+          setIsLoadMore(false);
+      }
+  };
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -101,7 +132,12 @@ export default function MissionsPage() {
   };
 
   const refresher = async () => {
-      const params: any = { per_page: 50 };
+      // Refresh current view (stay on current page logic is complex, simpler to reload page 1 or just re-fetch current list? 
+      // For simplicity in this context, let's just re-fetch page 1 but ideally we should update the modified item locally)
+      // Actually, refresher is used after actions. Let's try to just update the specific item locally if possible?
+      // But status changes might move it around if "New" filter is active.
+      // Let's re-fetch page 1.
+      const params: any = { per_page: 50 * page, page: 1 }; // Fetch all loaded so far?
       if (filter !== 'all') params.status = filter;
       if (sourceFilter !== 'all') params.source = sourceFilter;
       if (typeFilter !== 'all') params.type = typeFilter;
@@ -109,6 +145,7 @@ export default function MissionsPage() {
       if (sortBy) params.sort = sortBy;
       const jobsData = await api.getJobs(params);
       setJobs(jobsData.jobs);
+      setHasMore(jobsData.has_more);
   };
 
   const handleApplyJob = async (jobId: string) => {
@@ -541,6 +578,27 @@ export default function MissionsPage() {
                 </motion.div>
               ))}
               </AnimatePresence>
+            )}
+
+            {/* Load More Trigger */}
+            {!loading && hasMore && jobs.length > 0 && (
+                <div className="flex justify-center pt-8 pb-12">
+                    <button 
+                        onClick={loadMore}
+                        disabled={isLoadMore}
+                        className="tech-button border border-[var(--valo-text-dim)] text-[var(--valo-text)] hover:border-[var(--valo-red)] hover:text-[var(--valo-red)] px-8 py-3 tracking-widest font-bold transition-all disabled:opacity-50"
+                        style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}
+                    >
+                        {isLoadMore ? (
+                             <span className="flex items-center gap-2">
+                                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                 DECRYPTING DATA...
+                             </span>
+                        ) : (
+                             "LOAD MORE INTEL"
+                        )}
+                    </button>
+                </div>
             )}
           </div>
         </main>
