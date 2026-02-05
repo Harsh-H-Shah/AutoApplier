@@ -28,6 +28,12 @@ class JobSource(str, Enum):
     COMPANY_SITE = "company_site"
     MANUAL = "manual"
     OTHER = "other"
+    # New scrapers
+    LEVELSFYI = "levelsfyi"
+    GOOGLE_JOBS = "google_jobs"
+    CAREERJET = "careerjet"
+    GLASSDOOR = "glassdoor"
+    GREENHOUSE_JOBS = "greenhouse_jobs"
 
 
 class ApplicationType(str, Enum):

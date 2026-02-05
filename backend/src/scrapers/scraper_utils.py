@@ -27,7 +27,11 @@ def parse_date_string(date_str: str) -> Optional[datetime]:
     # 2. Try Relative Dates ("2 days ago", "1 month ago")
     now = datetime.now()
     try:
-        if "ago" in date_str.lower():
+        lower_str = date_str.lower()
+        if "just now" in lower_str or "moments ago" in lower_str:
+            return now
+            
+        if "ago" in lower_str:
             value_match = re.search(r'(\d+)', date_str)
             if not value_match:
                 return None

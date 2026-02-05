@@ -63,6 +63,15 @@ class JobrightScraper(BaseScraper):
                     "JR_device_id": self.device_id or "",
                 }
                 
+                # IMPORTANT: Jobright now requires SESSION_ID cookie
+                session_id = os.getenv("JOBRIGHT_SESSION_ID")
+                if session_id:
+                    cookies["SESSION_ID"] = session_id
+                
+                # Check if we have what we need
+                if not session_id and not self.user_id:
+                     print("   [WARNING] No Jobright SESSION_ID or UserID found. API may fail.")
+                
                 params = {
                     "refresh": "true" if position == 0 else "false",
                     "sortCondition": "0",
@@ -77,26 +86,24 @@ class JobrightScraper(BaseScraper):
                     timeout=30
                 )
                 
+                print(f"   [DEBUG] Jobright API Status: {response.status_code}")
                 if response.status_code != 200:
+                    print(f"   [DEBUG] Jobright API Error: {response.text}")
                     break
                 
                 data = response.json()
-                items = data.get("data", [])
+                
+                # Handle new API structure: data['result']['jobList']
+                result = data.get("result", {})
+                if isinstance(result, dict) and "jobList" in result:
+                    items = result.get("jobList", [])
+                else:
+                    items = data.get("data", [])
                 
                 if not items:
                     break
                 
                 for item in items:
-                    # DEBUG: Print first item's structure
-                    if len(jobs) == 0 and item:
-                        import json
-                        job_data = item.get("jobResult", {})
-                        print(f"\n[DEBUG] First job API data:")
-                        print(f"  applyLink: {job_data.get('applyLink', 'MISSING')}")
-                        print(f"  originalUrl: {job_data.get('originalUrl', 'MISSING')}")
-                        print(f"  jobId: {job_data.get('jobId', 'MISSING')}")
-                        print(f"  All keys: {list(job_data.keys())}\n")
-                    
                     job = self._parse_api_job(item)
                     if job and self.should_include_job(job):
                         jobs.append(job)

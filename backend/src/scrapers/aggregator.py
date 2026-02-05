@@ -8,6 +8,12 @@ from src.scrapers.cvrve import CVRVEScraper
 from src.scrapers.jobright import JobrightScraper
 from src.scrapers.additional_sources import BuiltInScraper
 from src.scrapers.link_validator import get_link_validator, get_incremental_scraper
+# New scrapers
+from src.scrapers.careerjet import CareerjetScraper
+from src.scrapers.greenhouse_jobs import GreenhouseJobsScraper
+from src.scrapers.google_jobs import GoogleJobsScraper
+from src.scrapers.glassdoor import GlassdoorScraper
+from src.scrapers.levelsfyi import LevelsfyiScraper
 from src.core.job import Job
 from src.utils.config import get_settings
 from src.utils.database import get_db
@@ -36,8 +42,15 @@ class JobAggregator:
         
         self.scrapers.append(JobrightScraper())
         self.scrapers.append(BuiltInScraper())
+        
+        # New scrapers
+        self.scrapers.append(CareerjetScraper())
+        self.scrapers.append(GreenhouseJobsScraper())
+        self.scrapers.append(GoogleJobsScraper())
+        self.scrapers.append(GlassdoorScraper())
+        self.scrapers.append(LevelsfyiScraper())
     
-    async def scrape_all(self, keywords: list[str] = None, location: str = None, limit_per_source: int = 50) -> dict:
+    async def scrape_all(self, keywords: list[str] = None, location: str = None, limit_per_source: int = 100) -> dict:
         keywords = keywords or self.settings.search.titles
         locations = self.settings.search.locations
         location = location or (locations[0] if locations else "")
@@ -120,6 +133,15 @@ class JobAggregator:
             "cvrve": CVRVEScraper,
             "jobright": JobrightScraper,
             "builtin": BuiltInScraper,
+            # New scrapers
+            "careerjet": CareerjetScraper,
+            "greenhouse": GreenhouseJobsScraper,
+            "greenhousejobs": GreenhouseJobsScraper,
+            "google": GoogleJobsScraper,
+            "googlejobs": GoogleJobsScraper,
+            "glassdoor": GlassdoorScraper,
+            "levelsfyi": LevelsfyiScraper,
+            "levels": LevelsfyiScraper,
         }
         
         scraper_class = scraper_map.get(source_lower)
